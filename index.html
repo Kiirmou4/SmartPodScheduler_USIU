@@ -1,0 +1,373 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Pod Scheduler – USIU Library</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9fb;
+      color: #333;
+      padding: 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    h1 {
+      color: #00274d;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      color: #004080;
+      margin-top: 40px;
+      margin-bottom: 10px;
+    }
+
+    form, table, ul, section {
+      margin-bottom: 30px;
+    }
+
+    form {
+      background: #ffffff;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #00274d;
+      color: white;
+      border: none;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #004080;
+    }
+
+    #errors {
+      color: #c00;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 0 8px rgba(0,0,0,0.05);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    th {
+      background-color: #00274d;
+      color: white;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    td button {
+      background-color: #c00;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+
+    td button:hover {
+      background-color: #a00;
+    }
+
+    ul {
+      background-color: #e9f3ff;
+      padding: 15px 20px;
+      border-radius: 8px;
+      list-style-type: none;
+    }
+
+    ul li {
+      margin-bottom: 8px;
+    }
+
+    code {
+      background: #eee;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Smart Pod Scheduler – USIU Library Booking System</h1>
+
+  <!-- API Route Table Section -->
+  <section>
+    <h2>📘 API Endpoints</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Route</th>
+          <th>Method</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/api/bookings</code></td>
+          <td>POST</td>
+          <td>Add a new booking</td>
+        </tr>
+        <tr>
+          <td><code>/api/bookings</code></td>
+          <td>GET</td>
+          <td>Get all bookings</td>
+        </tr>
+        <tr>
+          <td><code>/api/bookings/:id</code></td>
+          <td>DELETE</td>
+          <td>Delete a booking by ID</td>
+        </tr>
+        <tr>
+          <td><code>/api/pods</code></td>
+          <td>GET</td>
+          <td>(Optional) Get pod list</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Booking Form -->
+  <form id="bookingForm">
+    <label for="podSelect">Select Pod:</label>
+    <select id="podSelect"></select>
+
+    <label for="timeInput">Booking Time:</label>
+    <input type="time" id="timeInput" step="3600" required>
+
+    <label for="studentIds">Student IDs (comma-separated):</label>
+    <input type="text" id="studentIds" placeholder="e.g. SIT-001,SIT-045">
+
+    <button type="submit">Book Pod</button>
+    <div id="errors"></div>
+  </form>
+
+  <!-- Booking Table -->
+  <h2>All Bookings</h2>
+  <table id="bookingsTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Pod</th>
+        <th>Time</th>
+        <th># Students</th>
+        <th>Student IDs</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Insights Panel -->
+  <h2>Daily Insights</h2>
+  <ul id="insightsList"></ul>
+
+  <script>
+    /*
+    Variables & data types: const pods, bookings, etc.
+    Control structures: if/else used in validations and rules
+    Loops: used to render table rows, count students, generate insights
+    Functions: parseStudentIds(), renderTable(), etc.
+    Events: form submit, button clicks
+    DOM manipulation: form select, table, insights, error messages
+    */
+
+    const pods = [
+      { id: "POD-A", capacity: 4 },
+      { id: "POD-B", capacity: 4 },
+      { id: "POD-C", capacity: 4 }
+    ];
+
+    const initialBookings = [
+      { podId: "POD-A", time: "09:00", students: ["SIT-001", "SIT-045"] },
+      { podId: "POD-B", time: "10:00", students: ["SMC-210"] }
+    ];
+
+    let bookings = [...initialBookings];
+    let duplicateAttempts = 0;
+
+    function parseStudentIds(input) {
+      return input.split(',').map(id => id.trim().toUpperCase()).filter(id => id);
+    }
+
+    function isWithinOperatingHours(time) {
+      return time >= "08:00" && time < "20:00"; // strict check using === logic
+    }
+
+    function findBooking(podId, time) {
+      return bookings.find(b => b.podId === podId && b.time === time);
+    }
+
+    function hasCrossPodClash(studentId, time, podId) {
+      return bookings.some(b => b.time === time && b.podId !== podId && b.students.includes(studentId));
+    }
+
+    function roundTo1Decimal(num) {
+      return Math.round(num * 10) / 10;
+    }
+
+    document.getElementById("bookingForm").addEventListener("submit", function(event) {
+      event.preventDefault();
+      const podId = document.getElementById("podSelect").value;
+      const time = document.getElementById("timeInput").value;
+      const studentInput = document.getElementById("studentIds").value;
+      const studentIds = parseStudentIds(studentInput);
+      const errorDiv = document.getElementById("errors");
+      errorDiv.textContent = "";
+
+      if (!isWithinOperatingHours(time)) {
+        errorDiv.textContent = "Time must be between 08:00 and 19:59.";
+        return;
+      }
+
+      if (studentIds.length === 0) {
+        errorDiv.textContent = "Please enter at least one valid student ID.";
+        return;
+      }
+
+      const existing = findBooking(podId, time);
+      if (existing) {
+        const duplicates = studentIds.filter(id => existing.students.includes(id));
+        if (duplicates.length > 0) {
+          duplicateAttempts++;
+          errorDiv.textContent = "Some students already booked in this pod and time.";
+          return;
+        }
+        if (existing.students.length + studentIds.length > 4) {
+          errorDiv.textContent = "This booking exceeds the pod's capacity (4 students).";
+          return;
+        }
+        for (let id of studentIds) {
+          if (hasCrossPodClash(id, time, podId)) {
+            duplicateAttempts++;
+            errorDiv.textContent = "A student is already booked in another pod at the same time.";
+            return;
+          }
+        }
+        existing.students.push(...studentIds);
+      } else {
+        for (let id of studentIds) {
+          if (hasCrossPodClash(id, time, podId)) {
+            duplicateAttempts++;
+            errorDiv.textContent = "A student is already booked in another pod at the same time.";
+            return;
+          }
+        }
+        bookings.push({ podId, time, students: studentIds });
+      }
+
+      document.getElementById("studentIds").value = "";
+      document.getElementById("studentIds").focus();
+      renderTable();
+      renderInsights();
+    });
+
+    function renderTable() {
+      const tbody = document.querySelector("#bookingsTable tbody");
+      tbody.innerHTML = "";
+      for (let i = 0; i < bookings.length; i++) {
+        const b = bookings[i];
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${i + 1}</td>
+          <td>${b.podId}</td>
+          <td>${b.time}</td>
+          <td>${b.students.length}</td>
+          <td>${b.students.join(", ")}</td>
+          <td><button data-index="${i}" class="removeBtn">Remove</button></td>
+        `;
+        tbody.appendChild(row);
+      }
+    }
+
+    document.querySelector("#bookingsTable").addEventListener("click", function(e) {
+      if (e.target.classList.contains("removeBtn")) {
+        bookings.splice(e.target.dataset.index, 1);
+        renderTable();
+        renderInsights();
+      }
+    });
+
+    function renderInsights() {
+      const list = document.getElementById("insightsList");
+      let totalBookings = bookings.length;
+      let uniqueStudents = [];
+      let hourlyCount = {};
+      let podStats = {};
+
+      for (let b of bookings) {
+        b.students.forEach(s => {
+          if (!uniqueStudents.includes(s)) uniqueStudents.push(s);
+        });
+        hourlyCount[b.time] = (hourlyCount[b.time] || 0) + b.students.length;
+
+        if (!podStats[b.podId]) {
+          podStats[b.podId] = { totalSeats: 0, slots: new Set() };
+        }
+        podStats[b.podId].totalSeats += b.students.length;
+        podStats[b.podId].slots.add(b.time);
+      }
+
+      let busiest = Object.keys(hourlyCount).reduce((a, b) => hourlyCount[a] > hourlyCount[b] ? a : b, "");
+
+      list.innerHTML = `
+        <li>Total bookings today: ${totalBookings}</li>
+        <li>Total unique students served: ${uniqueStudents.length}</li>
+        <li>Busiest hour: ${busiest || 'N/A'}</li>
+        <li>Flagged duplicate attempts: ${duplicateAttempts}</li>
+      `;
+
+      for (let pod in podStats) {
+        let cap = pods.find(p => p.id === pod).capacity;
+        let fillRate = (podStats[pod].totalSeats / (cap * podStats[pod].slots.size)) * 100;
+        list.innerHTML += `<li>${pod} Fill Rate: ${roundTo1Decimal(fillRate)}%</li>`;
+      }
+    }
+
+    function init() {
+      const select = document.getElementById("podSelect");
+      pods.forEach(pod => {
+        const option = document.createElement("option");
+        option.value = pod.id;
+        option.textContent = pod.id;
+        select.appendChild(option);
+      });
+      renderTable();
+      renderInsights();
+    }
+
+    init();
+  </script>
+</body>
+</html>
